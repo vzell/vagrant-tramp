@@ -56,8 +56,13 @@
   "List of VMs per `vagrant global-status` as alists."
   (let* ((status-cmd "vagrant global-status --machine-readable")
          (status-raw (shell-command-to-string status-cmd))
-         (status-lines (-drop 8 (split-string status-raw "\n")))
-         (status-data-raw (--map (mapconcat 'identity
+         (status-lines (-drop 8 (split-string status-raw
+					      ;; Under cygwin, vagrant as a native Windows program emits "\r\n" instead of "\n"
+					      (if (memq system-type '(cygwin ms-dos windows-nt))
+						  "\r\n"
+						"\n")
+					      )))
+	 (status-data-raw (--map (mapconcat 'identity
                                             (-drop 4 (split-string it ",")) ",")
                                  status-lines))
          (status-data (--map (replace-regexp-in-string " " "" it) status-data-raw))
@@ -108,7 +113,10 @@
                            boxes))
              (box-id (cdr (assoc 'id box))))
         (with-current-buffer buffer
-          (cd (cdr (assoc 'dir box)))
+	  (if (eq system-type 'cygwin)
+	      ;; Under cygwin strip of the drive letter, eg "D:" from directory
+              (cd (substring (cdr (assoc 'dir box)) 2))
+	    (cd (cdr (assoc 'dir box))))
           (term-mode))
         (term-exec buffer name "vagrant" nil (list "ssh" box-id))
         (set-buffer buffer)
